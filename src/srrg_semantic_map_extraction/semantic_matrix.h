@@ -41,10 +41,14 @@ class SemanticMatrix {
                            std::string basename="map");
   std::vector<std::string> msg_format();
 
+  const cv::Mat& matrix(){return _matrix;}
+
  private:
   int rows;
   int cols;
   std::vector<std::vector<Cell> > semantic_matrix;
+
+  cv::Mat _matrix;
 
   void addCellValues(int row, int col,
                      std::string object_name = std::string(),

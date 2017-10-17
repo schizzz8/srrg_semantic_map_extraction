@@ -87,6 +87,10 @@ public:
     void buildSemanticMatrix();
 
     void showSemanticMatrix();
+
+    GridMap* gridMap(){return _grid_map;}
+    SemanticMatrix* semanticMatrix(){return _semantic_matrix;}
+
 private:
     std::string _image_path;
     std::string _robotname;

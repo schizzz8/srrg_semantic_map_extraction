@@ -51,19 +51,20 @@ int main(int argc, char** argv){
     MessageReader reader;
     reader.open(argv[2]);
 
-    
     Eigen::Isometry3f odom_to_map = Eigen::Isometry3f::Identity();
     odom_to_map.translate(Eigen::Vector3f(0.059,0.12,0.0f));
     odom_to_map.rotate(Eigen::AngleAxisf(-0.023,Eigen::Vector3f::UnitZ()));
     Eigen::Isometry3f robot_to_map = Eigen::Isometry3f::Identity();
 
-    int fontFace = cv::FONT_HERSHEY_PLAIN;
-    double fontScale = 1;
-    int thickness = 1;
-
     cv::namedWindow("classified",CV_WINDOW_NORMAL);
 
     cerr << endl;
+
+    Eigen::Matrix3f camera_matrix;
+    camera_matrix << 277.127,0,160.5,
+            0,277.127,120.5,
+            0,0,1;
+    Eigen::Matrix3f iK= camera_matrix.inverse();
 
     BaseMessage* msg = 0;
     while ((msg = reader.readMessage())) {
@@ -74,19 +75,26 @@ int main(int argc, char** argv){
         }
         PinholeImageMessage* pinhole_image_msg=dynamic_cast<PinholeImageMessage*>(msg);
         if (pinhole_image_msg) {
-            cv::Mat depth_image;
-            pinhole_image_msg->image().copyTo(depth_image);
+            cv::Mat depth_image = pinhole_image_msg->image().clone();
             int rows=depth_image.rows;
             int cols=depth_image.cols;
             cerr << "Image size: " << rows << "x" << cols << endl;
+
+            cv::imshow("depth_image",depth_image);
+            cv::waitKey();
+
             Cloud3D* points = new Cloud3D;
             points->resize(rows*cols);
-            float raw_depth_scale = pinhole_image_msg->depthScale();
+            float raw_depth_scale = 0.001f;//pinhole_image_msg->depthScale();
             Eigen::Isometry3f offset = pinhole_image_msg->offset();
             cerr << "Depth scale: " << raw_depth_scale << endl;
 
-	    // generate the points applying the inverse depth model
-            Eigen::Matrix3f iK= pinhole_image_msg->cameraMatrix().inverse();
+            // generate the points applying the inverse depth model
+
+            cerr << "Camera matrix: " << pinhole_image_msg->cameraMatrix() << endl;
+
+            cerr << "Sensor pose: " << offset.translation() << endl << offset.rotation() << endl;
+
             for (int r=0; r<depth_image.rows; r++) {
                 const unsigned short* id_ptr  = depth_image.ptr<unsigned short>(r);
                 for (int c=0; c<depth_image.cols; c++) {
@@ -98,6 +106,7 @@ int main(int argc, char** argv){
                     id_ptr++;
                 }
             }
+            cerr << "Point cloud size: " << points->size() << endl;
             StructureAnalyzer analyzer;
             analyzer.compute(points);
 
@@ -112,7 +121,7 @@ int main(int argc, char** argv){
                 }
             }
 
-	    robot_to_map = odom_to_map*pinhole_image_msg->odometry();
+            robot_to_map = odom_to_map*pinhole_image_msg->odometry();
 
             ClustererPathSearch clusterer;
             PathMap  output_map;
@@ -124,37 +133,36 @@ int main(int argc, char** argv){
             cerr << "Found " << clusters.size() << " clusters" << endl;
 
             cv::Mat output;
-            cv::cvtColor(classified,output,CV_GRAY2RGB);
+            //cv::cvtColor(classified,output,CV_GRAY2RGB);
+            output = extractor->semanticMatrix()->matrix().clone();
             int cluster_idx=0;
             for (const ClustererPathSearch::Cluster cluster: clusters) {
 
-	    Eigen::Vector3f a = points->at(analyzer.indices().at<int>(cluster.lower.x(),cluster.lower.y())).point();
-	    Eigen::Vector3f b = points->at(analyzer.indices().at<int>(cluster.lower.x(),cluster.upper.y())).point();
-	    Eigen::Vector3f c = points->at(analyzer.indices().at<int>(cluster.upper.x(),cluster.lower.y())).point();
-	    Eigen::Vector3f d = points->at(analyzer.indices().at<int>(cluster.upper.x(),cluster.upper.y())).point();
+                Eigen::Vector3f a_w = points->at(analyzer.indices().at<int>(cluster.lower.x(),cluster.lower.y())).point();
+                Eigen::Vector3f b_w = points->at(analyzer.indices().at<int>(cluster.lower.x(),cluster.upper.y())).point();
+                Eigen::Vector3f c_w = points->at(analyzer.indices().at<int>(cluster.upper.x(),cluster.lower.y())).point();
+                Eigen::Vector3f d_w = points->at(analyzer.indices().at<int>(cluster.upper.x(),cluster.upper.y())).point();
 
-	    a = robot_to_map*a;
-	    b = robot_to_map*b;
-	    c = robot_to_map*c;
-	    d = robot_to_map*d;
-	      
+                a_w = robot_to_map*a_w;
+                b_w = robot_to_map*b_w;
+                c_w = robot_to_map*c_w;
+                d_w = robot_to_map*d_w;
+
+                cv::Point2i a_g = cv::Point2i(a_w.x(),a_w.y());
+                cv::Point2i b_g = cv::Point2i(b_w.x(),b_w.y());
+                cv::Point2i c_g = cv::Point2i(c_w.x(),c_w.y());
+                cv::Point2i d_g = cv::Point2i(d_w.x(),d_w.y());
+
+                cv::Point2i a_cell = extractor->gridMap()->getCellFromImageCoords(a_g);
+                cv::Point2i b_cell = extractor->gridMap()->getCellFromImageCoords(b_g);
+                cv::Point2i c_cell = extractor->gridMap()->getCellFromImageCoords(c_g);
+                cv::Point2i d_cell = extractor->gridMap()->getCellFromImageCoords(d_g);
+
                 cv::rectangle(output,
-                              cv::Point(cluster.lower.y(), cluster.lower.x()),
-                              cv::Point(cluster.upper.y(), cluster.upper.x()),
+                              a_cell,
+                              b_cell,
                               cv::Scalar(255,0,0),
                               1);
-                cv::putText(output,
-                            std::to_string(cluster_idx),
-                            cv::Point(cluster.mean_c, cluster.mean_r),
-                            fontFace,
-                            fontScale,
-                            cv::Scalar(0,0,255),
-                            thickness);
-                cv::circle(output,
-                           cv::Point(cluster.mean_c, cluster.mean_r),
-                           1,
-                           cv::Scalar(0,0,255),
-                           1);
                 cluster_idx++;
             }
 
@@ -163,7 +171,7 @@ int main(int argc, char** argv){
             points->write(outfile);
             outfile.close();
 
-            cv::imshow("classified",output);
+            cv::imshow("obstacles",output);
             cv::waitKey();
 
         }

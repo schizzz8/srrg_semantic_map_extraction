@@ -382,10 +382,10 @@ void SemanticMatrix::removeObjectAdditionals(const std::string additionals) {
 }
 
 void SemanticMatrix::showMatrixImage() {
-    cv::Mat matrix = drawMatrix();
+    _matrix = drawMatrix();
 
     cv::namedWindow("semantic_matrix", CV_WINDOW_NORMAL);
-    cv::imshow("semantic_matrix", matrix);
+    cv::imshow("semantic_matrix", _matrix);
 }
 
 void SemanticMatrix::showMapImage(
