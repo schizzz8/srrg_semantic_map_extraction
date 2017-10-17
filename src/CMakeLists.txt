@@ -1,0 +1,2 @@
+add_subdirectory(srrg_semantic_map_extraction)
+add_subdirectory(examples)
