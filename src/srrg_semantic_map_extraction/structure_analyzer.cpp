@@ -12,6 +12,10 @@ StructureAnalyzer::StructureAnalyzer() {
 }
 
 void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
+
+    cerr << "Extracting ground level with structure analyzer" << endl;
+    cerr << "\t>>resolution: " << _cell_resolution << endl;
+
     _indices.release();
     _elevations.release();
     _transformed_cloud.clear();
@@ -22,14 +26,14 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
     float ires=1./_cell_resolution;
     _transformed_cloud.computeBoundingBox(_lower, _upper);
 
-    cerr << "Lower: " << _lower.transpose() << endl;
-
-    cerr << "Upper: " << _upper.transpose() << endl;
+    cerr << "\t>>origin: " << _lower.transpose() << endl;
 
     Eigen::Vector3f range = _upper - _lower;
     _size = (range*ires).cast<int>();
     int cols=_size.x();
     int rows=_size.y();
+
+    cerr << "\t>>size: " << _size.transpose() << endl;
 
     _bottom = _lower;
     _bottom.z() = 0;
@@ -50,12 +54,12 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
         //compute row and column of the projection
         int r=projected_point.y();
         int c=projected_point.x();
-        if (r>=_indices.rows || r<0)
+        if (r>=rows || r<0)
             continue;
-        if (c>=_indices.cols || r<0)
+        if (c>=cols || r<0)
             continue;
-        float &h=_elevations.at<float>(r,c);
-        int& idx=_indices.at<int>(r,c);
+        float &h=_elevations.at<float>(rows-r-1,c);
+        int& idx=_indices.at<int>(rows-r-1,c);
         if (z<h) {
             h=z;
             idx=i;
@@ -73,13 +77,12 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
         int c=projected_point.x();
 
         //cerr << r << "," << c << " ";
-        if (r>=_indices.rows || r<0)
+        if (r>=rows || r<0)
             continue;
-        if (c>=_indices.cols || r<0)
+        if (c>=cols || r<0)
             continue;
-        float &h=_obstacles.at<float>(r,c);
-        float &g=_elevations.at<float>(r,c);
-        int& idx=_indices.at<int>(r,c);
+        float &g=_elevations.at<float>(rows-r-1,c);
+        int& idx=_indices.at<int>(rows-r-1,c);
         float min_obstacle_height=g+_robot_climb_step;
         float max_obstacle_height=g+_robot_height;
 
@@ -93,8 +96,8 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
         g=z;
     }
     // fill in the invalid points
-    for (int r=0; r<_indices.rows; r++)
-        for (int c=0; c<_indices.cols; c++) {
+    for (int r=0; r<rows; r++)
+        for (int c=0; c<cols; c++) {
             int idx = _indices.at<int>(r,c);
             if (idx==-1)
                 continue;
@@ -107,8 +110,8 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
 
 
     // clean the spurious points
-    for (int r=1; r<_classified.rows-1; r++)
-        for (int c=1; c<_classified.cols-1; c++) {
+    for (int r=1; r<rows-1; r++)
+        for (int c=1; c<cols-1; c++) {
             unsigned char & cell=_classified.at<unsigned char>(r,c);
             if (cell!=255)
                 continue;
@@ -133,13 +136,13 @@ void StructureAnalyzer::compute(Cloud3D* cloud_, const Eigen::Isometry3f& iso) {
         //compute row and column of the projection
         int r=projected_point.y();
         int c=projected_point.x();
-        if (r>=_indices.rows || r<0)
+        if (r>=rows || r<0)
             continue;
-        if (c>=_indices.cols || r<0)
+        if (c>=cols || r<0)
             continue;
-        float &g=_elevations.at<float>(r,c);
+        float &g=_elevations.at<float>(rows-r-1,c);
         float max_obstacle_height=g+_robot_height;
-        int& idx=_indices.at<int>(r,c);
+        int& idx=_indices.at<int>(rows-r-1,c);
         if (idx<-1 || z>max_obstacle_height) {
             cloud_->at(i)._rgb=Eigen::Vector3f(1,0,0); //obstacle
         }

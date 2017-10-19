@@ -55,7 +55,9 @@ public:
             std::cerr << "Failed to load image!" << std::endl;
 
         cv::cvtColor(src, _image, CV_BGR2GRAY);
-        std::cerr << "Loaded RGB image " << _image.rows << "x" << _image.cols << std::endl;
+        _rows = _image.rows;
+        _cols = _image.cols;
+        std::cerr << "Loaded RGB image " << _rows << "x" << _cols << std::endl;
 
         _grid_map = NULL;
         _semantic_matrix = NULL;
@@ -75,6 +77,9 @@ public:
     void setOriginY(float origin_y){_origin_y = origin_y;}
     float originY(){return _origin_y;}
 
+    int rows(){return _rows;}
+    int cols(){return _cols;}
+
     void setPath(const std::string& path_){_path = path_;}
     const std::string& path(){return _path;}
 
@@ -88,6 +93,8 @@ public:
 
     void showSemanticMatrix();
 
+    const cv::Mat& image(){return _image;}
+
     GridMap* gridMap(){return _grid_map;}
     SemanticMatrix* semanticMatrix(){return _semantic_matrix;}
 
@@ -97,6 +104,8 @@ private:
     float _resolution;
     float _origin_x;
     float _origin_y;
+    int _rows;
+    int _cols;
     std::string _path;
     std::string _stat_xml_file_path;
     std::string _dyn_xml_file_path;

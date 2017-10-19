@@ -47,7 +47,6 @@ class SemanticMatrix {
   int rows;
   int cols;
   std::vector<std::vector<Cell> > semantic_matrix;
-
   cv::Mat _matrix;
 
   void addCellValues(int row, int col,
